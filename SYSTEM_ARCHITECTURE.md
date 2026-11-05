@@ -76,7 +76,7 @@ Use a NestJS modular monolith with explicit domain boundaries:
 - `hermes-integration`: supported Hermes APIs/configuration, profile/session mapping, lifecycle and health.
 - `memory`: memory records, namespaces, provider interface and policy.
 - `knowledge`: documents, ingestion, indexing, retrieval and access checks.
-- `orchestration`: tasks, dependencies, assignments, state transitions and dispatch.
+- `orchestration`: thin Harness layer on top of Hermes kanban — task wrappers, tenant scoping, approval gates, audit, primary-agent consolidation. Does not reimplement the task engine, dispatch daemon, retries or dependency graph (Hermes owns these).
 - `authorization`: policies, capability grants, approvals and decision records.
 - `integrations`: MCP catalog, server lifecycle, connections and CLI inventory.
 - `models`: allowed model/provider configuration and policy where needed, while Hermes performs model interaction.
@@ -172,12 +172,11 @@ Hermes remains authoritative for its own session lifecycle and session data. Har
 1. Request reaches the person's primary agent through a supported Hermes interaction surface.
 2. Harness provides authorized identity, memory, knowledge and relevant task context through its integration mechanisms.
 3. Hermes performs reasoning and tool execution.
-4. When delegation is needed, the agent uses a Harness-owned orchestration capability/API.
-5. Harness creates durable task records and assigns a specialist.
-6. Worker dispatches the task to the specialist's Hermes profile/session.
-7. Specialist submits result/evidence.
-8. Harness records state and emits an event.
-9. Primary agent receives the result through the supported integration mechanism and reports it.
+4. When delegation is needed, the agent (or Harness) creates a task in Hermes kanban (`hermes kanban create --assignee <specialist profile> --tenant <tenant> ...`), optionally linking dependencies via `task_links`.
+5. Hermes's dispatch daemon picks up the ready task and runs it in the specialist's profile/session.
+6. Specialist submits result/evidence (`hermes kanban complete`); kanban records state and emits task events.
+7. Harness reads task state/events for audit, approval gates and tenant-scoped visibility.
+8. Primary agent receives the result through the supported integration mechanism and reports it.
 
 The exact message handoff mechanism must be validated against Hermes's supported interfaces. Do not assume a particular webhook or internal event API exists until verified.
 
@@ -195,7 +194,7 @@ The exact message handoff mechanism must be validated against Hermes's supported
 - Object storage: uploaded documents, generated artifacts and large binary assets.
 - Memory provider: behind a Harness-owned interface; Mnemosyne is an initial adapter, not the domain model.
 - Vector retrieval: start with PostgreSQL/pgvector if suitable; avoid introducing a separate vector database without measured need.
-- Hermes storage: owned by Hermes. Persist it using its supported deployment/storage configuration.
+- Hermes storage: owned by Hermes. Persist it using its supported deployment/storage configuration. Includes per-profile `state.db` (sessions), `projects.db` and the shared `kanban.db` (tasks, links, events, runs, comments, attachments). The Harness references kanban task ids; it never writes to these stores directly.
 
 ## 8. Deployment topology
 

@@ -207,51 +207,39 @@ Do not infer access from agent relationships alone. Enforce grants in the Harnes
 
 Chunks/embeddings should retain `tenant_id`, `document_id` and access metadata so retrieval can filter before returning content. Never retrieve broadly and rely on the model to ignore unauthorized content.
 
-## 7. Orchestration entities
+## 7. Orchestration entities (Harness layer over Hermes kanban)
 
-### `tasks`
-- `id` UUID PK
+The Harness does not own a parallel task store. Task state, dependencies, events, runs, comments and attachments live in Hermes's kanban (`/root/.hermes/kanban.db`). The Harness stores only a thin wrapper keyed by the kanban task id, plus Harness-owned metadata that kanban does not carry (requester user/agent, acceptance criteria, context refs, approval requirements, tenant enforcement).
+
+### `tasks` (Harness wrapper)
+- `id` UUID PK (Harness-side)
+- `kanban_task_id` TEXT (FK-like reference to kanban tasks.id; not a DB FK since it crosses stores)
 - `tenant_id` FK
-- `title`, `description`
 - `requester_user_id` nullable FK
 - `requester_agent_id` nullable FK
-- `owner_agent_id` nullable FK
-- `parent_task_id` nullable self-FK
-- `status`
-- `priority`
+- `owner_agent_id` nullable FK (maps to kanban assignee profile)
 - `acceptance_criteria` JSONB or structured child rows
 - `context_refs` JSONB (IDs only, each independently authorized)
 - `result_summary`
-- `created_at`, `updated_at`, `started_at`, `completed_at`
+- `created_at`, `updated_at`
 
-### `task_dependencies`
-- `task_id` FK
-- `depends_on_task_id` FK
-- `dependency_type`
-- composite PK
-- prevent cycles at service layer and validate before dispatch.
+Kanban owns: title, body, status, priority, parent/child links (`task_links`), timestamps, runtime fields (worker_pid, claim_lock, session_id, model overrides), consecutive_failures, idempotency_key, completion_contract, goal mode.
 
-### `task_events`
-- `id` UUID PK
-- `tenant_id` FK
-- `task_id` FK
-- `event_type`
-- `actor_type`, `actor_id`
-- `payload` JSONB
-- `created_at`
-
-Append-only. Corrections are new events, not edits to history.
+### `task_events` (Harness audit)
+Harness may append its own audit events (approval decisions, tenant-scoped reads) in its own store; kanban's `task_events` remains the source of truth for task lifecycle. Do not duplicate kanban's event log into the Harness DB.
 
 ### `approvals`
 - `id` UUID PK
 - `tenant_id` FK
-- `task_id` nullable FK
+- `kanban_task_id` nullable (links to the kanban task being approved)
 - `requested_by_agent_id`
 - `approver_user_id` nullable FK / approver policy
 - `action_type`
 - `action_payload` JSONB
 - `status` (pending, approved, rejected, expired, cancelled)
 - timestamps and decision metadata
+
+All task lifecycle transitions, dependency graphs, retries and dispatch are Hermes kanban's responsibility. The Harness must not write to `kanban.db` directly; mutations go through `hermes kanban` CLI or a supported API.
 
 ## 8. Integrations, connections and authorization
 

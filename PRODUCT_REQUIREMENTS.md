@@ -125,33 +125,31 @@ Learning cannot independently change identity, permissions, credential access or
 
 ## 7. Orchestration requirements
 
-The Harness owns cross-agent task orchestration; Hermes owns each agent's execution.
+The Harness does **not** build a parallel task engine. Hermes ships a durable, multi-profile task board (kanban) with tasks, dependency links, append-only events, runs, comments, attachments, notify subscriptions, a dispatch daemon (claim locks, heartbeat, timeout, retry, dead-letter) and idempotency keys. The Harness **integrates with and wraps** Hermes kanban rather than reimplementing it.
 
-A task should have:
-- Stable ID and tenant.
+The Harness's orchestration responsibilities are therefore:
+- Tenant-scoping and authorization on top of kanban's `tenant` column.
+- Mapping Harness agents/users to kanban assignees (Hermes profiles).
+- Approval gates and owner-decision queues layered on task state transitions.
+- Audit and observability beyond kanban's own event log.
+- Primary-agent consolidation of specialist results.
+
+Kanban's own lifecycle is reused: `triage → todo → scheduled → ready → running → blocked → review → done`. A Harness task wraps a kanban task ID and adds Harness-owned metadata (requester, acceptance criteria, context refs, approval requirements). Tasks, approvals and dependencies remain durable in kanban's store; the Harness never uses a Hermes session as the durable task database.
+
+Task requirements (Harness layer):
+- Stable ID and tenant (kanban task id + Harness wrapper).
 - Requester and owner agent.
-- Optional parent task and dependencies.
+- Optional parent task and dependencies (kanban `task_links`).
 - Description, acceptance criteria and relevant context references.
 - Priority, status, timestamps and due date if applicable.
 - Approval requirements.
 - Result/artifact references.
-- Append-only event history.
-
-Expected lifecycle:
-
-`created → assigned → acknowledged → in_progress → submitted → review → accepted`
-
-Additional states include `blocked`, `needs_owner_decision`, `failed`, `cancelled` and `reopened`.
-
-Requirements:
-- No task silently disappears.
-- Dependencies are explicit.
-- Agents acknowledge assignment.
-- Completion includes evidence/artifacts where relevant.
-- Owner decisions are queued and visible.
-- Retries are idempotent and bounded.
+- Append-only event history (kanban `task_events` + Harness audit).
+- Idempotent, bounded retries (kanban dispatch daemon).
 - Agent-to-agent messages do not replace durable task state.
 - The primary agent consolidates specialist results for the user.
+
+Harness agents invoke kanban via the Hermes CLI (`hermes kanban create/assign/claim/complete/block/link/comment/attach/dispatch/daemon`) or, where a supported API exists, through it. Direct writes to `kanban.db` are not permitted; all mutations go through Hermes interfaces.
 
 ## 8. Integrations and tools
 

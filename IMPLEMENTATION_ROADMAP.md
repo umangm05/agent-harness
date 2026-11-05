@@ -87,21 +87,19 @@ Deliver:
 
 ## 6. Phase 4 — Orchestration and approvals
 
-**Goal:** Agents can delegate durable work without losing tasks.
+**Goal:** Agents can delegate durable work without losing tasks, by integrating with Hermes kanban (not rebuilding it).
 
 Deliver:
-- Task model and append-only task events.
-- Assignment, acknowledgement and lifecycle transitions.
-- Dependency graph and cycle detection.
-- Durable queue/outbox and worker.
-- Hermes task dispatch integration.
-- Completion/failure observation.
-- Owner decision and approval queue.
-- Retry, timeout, cancellation and recovery.
-- Primary-agent result consolidation mechanism.
-- Admin task board and activity timeline.
+- Harness task wrapper model keyed on kanban task id; tenant scoping and authorization.
+- Agent-to-kanban-assignee mapping (Harness agent → Hermes profile).
+- `hermes kanban create/assign/claim/complete/block/link/comment/attach` invocation from Harness/agent flows.
+- Approval gates and owner-decision queue layered on kanban state transitions.
+- kanban dispatch daemon integration and health observation.
+- Primary-agent result consolidation mechanism (read kanban task results/events).
+- Admin task board view reading kanban state + Harness audit.
+- Security tests for tenant isolation on task data.
 
-**Exit criteria:** A primary agent delegates a task to a specialist; task state survives restarts; dependencies, approval and completion are visible and auditable.
+**Exit criteria:** A primary agent delegates a task to a specialist via kanban; task state survives restarts; dependencies, approval and completion are visible and auditable. No custom dispatch engine shipped.
 
 ## 7. Phase 5 — Integrations and permissions
 
