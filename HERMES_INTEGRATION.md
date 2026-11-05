@@ -176,8 +176,20 @@ Pin a tested Hermes version for each Harness release. Maintain an integration te
 
 Do not promise compatibility with every Hermes version until the suite validates it.
 
-## 13. Open validation checklist
+## 13. Kanban integration contract
 
+Hermes owns the task engine; the Harness integrates with it. See `PHASE_0_FINDINGS.md` §5.
+
+Rules:
+- Task state, dependencies, events, runs, comments, attachments live in Hermes's shared `kanban.db`.
+- The Harness stores only a thin wrapper keyed on the kanban task id, plus Harness-owned metadata (requester, acceptance criteria, context refs, approval requirements, tenant enforcement).
+- All mutations go through `hermes kanban` CLI or a supported API. Direct writes to `kanban.db` are forbidden.
+- Harness agents map to kanban assignees (Hermes profile names).
+- Tenant isolation is enforced by the Harness on top of kanban's `tenant` column; kanban's own visibility is not a security boundary.
+- Approval gates, owner decisions and audit are Harness-layer concerns layered on kanban state transitions.
+- The Harness must not use a Hermes session as the durable task database.
+
+## 14. Open validation checklist
 - [ ] Identify exact supported Hermes APIs and configuration interfaces.
 - [ ] Verify profile lifecycle operations.
 - [ ] Verify session creation/resume/close semantics.
@@ -189,3 +201,11 @@ Do not promise compatibility with every Hermes version until the suite validates
 - [ ] Verify sandbox capabilities and limitations.
 - [ ] Verify supported runtime health and version reporting.
 - [ ] Document all unsupported enforcement cases.
+
+## Phase 0 status (updated 2026-11-05)
+
+Phase 0 probing is complete. See `PHASE_0_FINDINGS.md` for the verified contract. Key outcomes:
+- Profile/session/invocation lifecycle verified end-to-end (CLI + HTTP runs API).
+- Hermes ships a built-in multi-profile kanban (tasks, links, events, runs, comments, attachments, notify subs, dispatch daemon) — the Harness should INTEGRATE with it, not rebuild orchestration.
+- Sandbox is `local` backend by default → CLI capabilities must be marked `sandbox-limited` unless docker backend is enabled. Do not ship a security claim the runtime can't back.
+- Multi-profile HTTP invocation requires a per-profile `API_SERVER_KEY`; provision one at profile creation or fall back to the CLI path.
